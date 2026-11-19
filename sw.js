@@ -1,5 +1,5 @@
 // zoomin-reader service worker — funciona sin conexión
-const CACHE = 'zoomin-reader-v1';
+const CACHE = 'zoomin-reader-v2';
 const ASSETS = [
   './',
   'index.html',
