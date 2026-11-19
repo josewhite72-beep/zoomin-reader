@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>zoomin-reader</title>
+  <meta name="description" content="Lector de cómics CBR/CBZ con zoom al tocar y lupa.">
+  <meta name="theme-color" content="#14141c">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ============ BIBLIOTECA ============ -->
+  <section id="library" class="screen active">
+    <header class="lib-header">
+      <div class="brand">
+        <img src="icons/icon-192.png" alt="" width="36" height="36">
+        <h1>zoomin<span>-reader</span></h1>
+      </div>
+      <button id="btnSettingsLib" class="icon-btn" aria-label="Ajustes">⚙</button>
+    </header>
+
+    <div class="open-area">
+      <button id="btnOpen" class="btn-primary">📂 Abrir cómic</button>
+      <label class="check"><input type="checkbox" id="chkSave" checked> Guardar en mi biblioteca</label>
+      <p class="formats">CBR · CBZ · RAR · ZIP</p>
+      <input type="file" id="fileInput" hidden>
+    </div>
+
+    <h2 class="section-title">Mi biblioteca <small id="storageInfo"></small></h2>
+    <div id="bookGrid" class="book-grid"></div>
+    <p id="emptyMsg" class="empty">Todavía no hay cómics guardados.</p>
+  </section>
+
+  <!-- ============ LECTOR ============ -->
+  <section id="reader" class="screen">
+    <div id="stage">
+      <img id="pageImg" alt="" draggable="false">
+      <div id="loupe" aria-hidden="true"></div>
+      <div id="pageSpinner" class="spinner" hidden></div>
+    </div>
+
+    <header class="bar top-bar">
+      <button id="btnBack" class="icon-btn" aria-label="Volver">←</button>
+      <div class="title-wrap"><span id="bookTitle"></span><small id="extractInfo"></small></div>
+      <button id="btnFull" class="icon-btn" aria-label="Pantalla completa">⛶</button>
+      <button id="btnSettings" class="icon-btn" aria-label="Ajustes">⚙</button>
+    </header>
+
+    <footer class="bar bottom-bar">
+      <button id="btnPrev" class="icon-btn" aria-label="Anterior">‹</button>
+      <input type="range" id="pageSlider" min="1" max="1" value="1" aria-label="Página">
+      <span id="pageLabel">1 / 1</span>
+      <button id="btnNext" class="icon-btn" aria-label="Siguiente">›</button>
+    </footer>
+
+    <div id="hint" class="hint" hidden>
+      <div class="hint-card">
+        <h3>Cómo leer</h3>
+        <ul>
+          <li><b>Toca</b> un globo de texto → zoom en ese punto</li>
+          <li><b>Toca otra vez</b> → vuelve a la página completa</li>
+          <li><b>Mantén el dedo</b> → lupa que sigue tu dedo</li>
+          <li><b>Pellizca</b> → zoom libre · <b>Arrastra</b> → moverte</li>
+          <li><b>Desliza</b> a los lados → cambiar página</li>
+        </ul>
+        <button id="btnHintOk" class="btn-primary">¡Entendido!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CARGANDO ============ -->
+  <div id="loading" class="overlay" hidden>
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <p id="loadingText">Abriendo…</p>
+      <div class="progress"><div id="progressBar"></div></div>
+    </div>
+  </div>
+
+  <!-- ============ AJUSTES ============ -->
+  <dialog id="settingsDlg">
+    <form method="dialog">
+      <h3>Ajustes</h3>
+      <label>Zoom al tocar
+        <select id="setZoom">
+          <option value="2">2×</option>
+          <option value="2.5">2.5×</option>
+          <option value="3">3×</option>
+          <option value="4">4×</option>
+        </select>
+      </label>
+      <label>Al tocar con zoom activo
+        <select id="setTapZoomed">
+          <option value="out">Volver a la página completa</option>
+          <option value="move">Ir a ese punto (sin alejar)</option>
+        </select>
+      </label>
+      <label>Aumento de la lupa
+        <select id="setLoupe">
+          <option value="2">2×</option>
+          <option value="2.5">2.5×</option>
+          <option value="3">3×</option>
+          <option value="4">4×</option>
+        </select>
+      </label>
+      <label>Tamaño de la lupa
+        <select id="setLoupeSize">
+          <option value="150">Pequeña</option>
+          <option value="200">Mediana</option>
+          <option value="260">Grande</option>
+        </select>
+      </label>
+      <label>Dirección de lectura
+        <select id="setDir">
+          <option value="ltr">Izquierda → derecha (cómic)</option>
+          <option value="rtl">Derecha → izquierda (manga)</option>
+        </select>
+      </label>
+      <button type="button" id="btnShowHint" class="btn-link">Ver instrucciones otra vez</button>
+      <div class="dlg-actions"><button class="btn-primary" value="ok">Listo</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/jszip.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
