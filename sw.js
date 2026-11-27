@@ -1,10 +1,11 @@
 // zoomin-reader service worker — funciona sin conexión
-const CACHE = 'zoomin-reader-v2';
+const CACHE = 'zoomin-reader-v3';
 const ASSETS = [
   './',
   'index.html',
   'styles.css',
   'app.js',
+  'voz.js',
   'manifest.json',
   'vendor/jszip.min.js',
   'vendor/unrar.bundle.js',

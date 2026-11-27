@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>zoomin-reader</title>
-  <meta name="description" content="Lector de cómics CBR/CBZ con zoom al tocar y lupa.">
+  <meta name="description" content="Lector de cómics CBR/CBZ con zoom al tocar, lupa y lectura en voz alta.">
+  <meta name="author" content="JoséWhite's PanaMentorLabs">
   <meta name="theme-color" content="#14141c">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
@@ -33,6 +34,7 @@
     <h2 class="section-title">Mi biblioteca <small id="storageInfo"></small></h2>
     <div id="bookGrid" class="book-grid"></div>
     <p id="emptyMsg" class="empty">Todavía no hay cómics guardados.</p>
+    <p class="credit">Hecho por JoséWhite's PanaMentorLabs</p>
   </section>
 
   <!-- ============ LECTOR ============ -->
@@ -40,6 +42,7 @@
     <div id="stage">
       <img id="pageImg" alt="" draggable="false">
       <div id="loupe" aria-hidden="true"></div>
+      <div id="readHL" hidden></div>
       <div id="pageSpinner" class="spinner" hidden></div>
     </div>
 
@@ -49,6 +52,17 @@
       <button id="btnFull" class="icon-btn" aria-label="Pantalla completa">⛶</button>
       <button id="btnSettings" class="icon-btn" aria-label="Ajustes">⚙</button>
     </header>
+
+    <button id="btnSpeak" class="fab" aria-label="Leer en voz alta">🔊</button>
+
+    <div id="voiceSheet" class="voice-sheet" hidden>
+      <div class="vs-head">
+        <span id="vsStatus"></span>
+        <button id="vsPlay" class="vs-btn">▶ Leer</button>
+        <button id="vsClose" class="vs-btn" aria-label="Cerrar">✕</button>
+      </div>
+      <div id="vsList" class="vs-list"></div>
+    </div>
 
     <footer class="bar bottom-bar">
       <button id="btnPrev" class="icon-btn" aria-label="Anterior">‹</button>
@@ -66,6 +80,7 @@
           <li><b>Mantén el dedo</b> → lupa que sigue tu dedo</li>
           <li><b>Pellizca</b> → zoom libre · <b>Arrastra</b> → moverte</li>
           <li><b>Desliza</b> a los lados → cambiar página</li>
+          <li><b>🔊</b> → lee en voz alta los textos que ves en pantalla (puedes corregir el texto y volver a leer)</li>
         </ul>
         <button id="btnHintOk" class="btn-primary">¡Entendido!</button>
       </div>
@@ -120,6 +135,52 @@
           <option value="rtl">Derecha → izquierda (manga)</option>
         </select>
       </label>
+      <h4>🔊 Lectura en voz alta</h4>
+      <label>Idioma del cómic
+        <select id="setComicLang">
+          <option value="es">Español</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+      <label>Cómo reconocer el texto
+        <select id="setTtsMode">
+          <option value="auto">Automático: IA con internet, local sin internet</option>
+          <option value="local">Siempre sin internet (en el teléfono)</option>
+          <option value="ai">Siempre IA (requiere internet)</option>
+        </select>
+      </label>
+      <label class="row"><input type="checkbox" id="setAutoRead"> Leer automáticamente al hacer zoom</label>
+      <label>Voz
+        <select id="setVoice"></select>
+      </label>
+      <label>Velocidad
+        <select id="setTtsRate">
+          <option value="0.8">Lenta</option>
+          <option value="0.9">Un poco lenta</option>
+          <option value="1">Normal</option>
+          <option value="1.15">Un poco rápida</option>
+          <option value="1.3">Rápida</option>
+        </select>
+      </label>
+      <button type="button" id="btnTestVoice" class="btn-link">Probar voz</button>
+
+      <h4>🤖 IA (modo con internet)</h4>
+      <label>Proveedor
+        <select id="setAiProvider">
+          <option value="gemini">Google Gemini</option>
+          <option value="groq">Groq</option>
+        </select>
+      </label>
+      <label>Clave API
+        <input type="password" id="setAiKey" autocomplete="off" placeholder="Pega aquí tu clave">
+        <small id="aiKeyHelp"></small>
+      </label>
+      <label>Modelo (opcional)
+        <input type="text" id="setAiModel" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <small>Déjalo vacío para usar el recomendado.</small>
+      </label>
+      <label class="row"><input type="checkbox" id="setReadSfx"> Leer también onomatopeyas (¡BOOM!)</label>
+
       <button type="button" id="btnShowHint" class="btn-link">Ver instrucciones otra vez</button>
       <div class="dlg-actions"><button class="btn-primary" value="ok">Listo</button></div>
     </form>

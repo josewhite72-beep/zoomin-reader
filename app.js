@@ -1,6 +1,7 @@
 // zoomin-reader — lector de cómics CBR/CBZ con zoom al tocar y lupa
-// PanaMentorLabs
+// JoséWhite's PanaMentorLabs
 import { createExtractorFromData } from './vendor/unrar.bundle.js';
+import { initVoz, readVisible, stop as stopVoice, isActive as voiceActive, positionHighlight, closeSheet, listVoices, AI_DEFAULT_MODEL } from './voz.js';
 
 const $ = (s) => document.querySelector(s);
 const IMG_RE = /\.(jpe?g|png|gif|webp|bmp|avif)$/i;
@@ -9,7 +10,12 @@ const MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'im
 /* =========================================================
    AJUSTES
    ========================================================= */
-const DEFAULTS = { zoom: 2.5, tapZoomed: 'out', loupe: 2.5, loupeSize: 200, dir: 'ltr', hintSeen: false };
+const DEFAULTS = {
+  zoom: 2.5, tapZoomed: 'out', loupe: 2.5, loupeSize: 200, dir: 'ltr', hintSeen: false,
+  // Lectura en voz alta
+  comicLang: 'es', ttsMode: 'auto', autoRead: false, ttsRate: 1, voiceURI: '',
+  aiProvider: 'gemini', aiKey: '', aiModel: '', readSfx: false,
+};
 let settings = { ...DEFAULTS };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('zr-settings') || '{}')); } catch {}
 const saveSettings = () => { try { localStorage.setItem('zr-settings', JSON.stringify(settings)); } catch {} };
@@ -20,10 +26,12 @@ const saveSettings = () => { try { localStorage.setItem('zr-settings', JSON.stri
 let dbP;
 function db() {
   if (!dbP) dbP = new Promise((res, rej) => {
-    const r = indexedDB.open('zoomin-reader', 1);
+    const r = indexedDB.open('zoomin-reader', 2);
     r.onupgradeneeded = () => {
-      r.result.createObjectStore('books', { keyPath: 'id' });
-      r.result.createObjectStore('files');
+      const names = r.result.objectStoreNames;
+      if (!names.contains('books')) r.result.createObjectStore('books', { keyPath: 'id' });
+      if (!names.contains('files')) r.result.createObjectStore('files');
+      if (!names.contains('ocr')) r.result.createObjectStore('ocr'); // texto reconocido por zona
     };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
@@ -48,6 +56,7 @@ const putFile = (id, blob) => idb('files', 'readwrite', (s) => s.put(blob, id));
 async function deleteBook(id) {
   await idb('books', 'readwrite', (s) => s.delete(id));
   await idb('files', 'readwrite', (s) => s.delete(id));
+  await idb('ocr', 'readwrite', (s) => s.delete(IDBKeyRange.bound(id + '|', id + '|￿'))).catch(() => {});
 }
 
 /* =========================================================
@@ -173,7 +182,7 @@ async function openBuffer(buf, onProgress) {
    LECTOR: estado de página y zoom
    ========================================================= */
 const stage = $('#stage'), img = $('#pageImg'), loupe = $('#loupe');
-let book = null, meta = null, cur = 0, loadToken = 0;
+let book = null, meta = null, cur = 0, loadToken = 0, curId = 'tmp';
 const urlCache = new Map(); // índice -> objectURL (solo actual ± 1)
 
 // Transformación: pantalla = t + c * s   (c = punto en la imagen a escala 1)
@@ -196,6 +205,7 @@ function apply(anim) {
   img.style.transition = anim ? 'transform .24s cubic-bezier(.2,.8,.3,1)' : 'none';
   img.style.transform = `translate3d(${tx}px,${ty}px,0) scale(${s})`;
   document.body.classList.toggle('zoomed', s > 1.01);
+  positionHighlight();
 }
 function resetZoom(anim) { s = 1; clamp(); apply(anim); }
 // Zoom a escala ns; si center=true el punto tocado queda en el centro de la pantalla
@@ -225,6 +235,7 @@ function preload(i) {
 async function goTo(i, { save = true } = {}) {
   if (!book) return;
   i = Math.max(0, Math.min(book.names.length - 1, i));
+  if (i !== cur) closeSheet();
   cur = i;
   const token = ++loadToken;
   updatePageUI();
@@ -388,9 +399,13 @@ stage.addEventListener('pointercancel', endPointer);
 stage.addEventListener('contextmenu', (e) => e.preventDefault());
 
 function onTap(x, y) {
-  if (s <= 1.01) zoomAt(x, y, +settings.zoom, true);
-  else if (settings.tapZoomed === 'move') zoomAt(x, y, s, true);
+  if (voiceActive()) stopVoice();
+  let zoomedIn = false;
+  if (s <= 1.01) { zoomAt(x, y, +settings.zoom, true); zoomedIn = true; }
+  else if (settings.tapZoomed === 'move') { zoomAt(x, y, s, true); zoomedIn = true; }
   else resetZoom(true);
+  // Leer automáticamente lo que quedó en pantalla tras el zoom
+  if (zoomedIn && settings.autoRead) setTimeout(() => readVisible(), 320);
 }
 
 // Rueda del ratón (PC): zoom donde está el cursor
@@ -407,6 +422,7 @@ window.addEventListener('resize', () => { if (book && img.naturalWidth) { measur
 
 document.addEventListener('keydown', (e) => {
   if (!$('#reader').classList.contains('active') || $('#settingsDlg').open) return;
+  if (e.target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
   if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); settings.dir === 'rtl' ? prev() : next(); }
   else if (e.key === 'ArrowLeft') { e.preventDefault(); settings.dir === 'rtl' ? next() : prev(); }
   else if (e.key === 'Escape' && s > 1.01) resetZoom(true);
@@ -425,6 +441,7 @@ async function openComic({ buf, name, id, saveBlob }) {
     const b = await openBuffer(buf, onProgress);
     closeBook();
     book = b;
+    curId = id;
 
     meta = (await getBook(id).catch(() => null)) || null;
     if (saveBlob) {
@@ -452,6 +469,7 @@ async function openComic({ buf, name, id, saveBlob }) {
 
 function closeBook() {
   loadToken++;
+  closeSheet();
   urlCache.forEach((u) => URL.revokeObjectURL(u)); urlCache.clear();
   img.removeAttribute('src');
   book = null; meta = null; cur = 0; s = 1;
@@ -549,14 +567,52 @@ $('#btnFull').onclick = () => {
 };
 
 const dlg = $('#settingsDlg');
-const fields = { setZoom: 'zoom', setTapZoomed: 'tapZoomed', setLoupe: 'loupe', setLoupeSize: 'loupeSize', setDir: 'dir' };
+const fields = {
+  setZoom: 'zoom', setTapZoomed: 'tapZoomed', setLoupe: 'loupe', setLoupeSize: 'loupeSize', setDir: 'dir',
+  setComicLang: 'comicLang', setTtsMode: 'ttsMode', setAutoRead: 'autoRead', setTtsRate: 'ttsRate', setVoice: 'voiceURI',
+  setAiProvider: 'aiProvider', setAiKey: 'aiKey', setAiModel: 'aiModel', setReadSfx: 'readSfx',
+};
+function fillVoices() {
+  const sel = $('#setVoice');
+  const vs = listVoices(settings.comicLang);
+  sel.innerHTML = '<option value="">Automática</option>' +
+    vs.map((v) => `<option value="${v.voiceURI.replace(/"/g, '&quot;')}">${v.name} (${v.lang})</option>`).join('');
+  sel.value = vs.some((v) => v.voiceURI === settings.voiceURI) ? settings.voiceURI : '';
+}
+function syncAiFields() {
+  $('#setAiModel').placeholder = AI_DEFAULT_MODEL[settings.aiProvider] || '';
+  $('#aiKeyHelp').innerHTML = settings.aiProvider === 'groq'
+    ? 'Clave gratis en <b>console.groq.com</b> → API Keys'
+    : 'Clave gratis en <b>aistudio.google.com</b> → Get API key';
+}
 function openSettings() {
-  for (const [id, k] of Object.entries(fields)) $('#' + id).value = String(settings[k]);
+  for (const [id, k] of Object.entries(fields)) {
+    const el = $('#' + id);
+    if (el.type === 'checkbox') el.checked = !!settings[k];
+    else if (id !== 'setVoice') el.value = String(settings[k] ?? '');
+  }
+  fillVoices(); syncAiFields();
   dlg.showModal();
 }
 for (const [id, k] of Object.entries(fields)) {
-  $('#' + id).onchange = (e) => { settings[k] = e.target.value; saveSettings(); if (book) updatePageUI(); };
+  const el = $('#' + id);
+  el.onchange = () => {
+    settings[k] = el.type === 'checkbox' ? el.checked : el.value.trim();
+    if (id === 'setComicLang') { settings.voiceURI = ''; fillVoices(); }
+    if (id === 'setAiProvider') { settings.aiModel = ''; $('#setAiModel').value = ''; syncAiFields(); }
+    saveSettings();
+    if (book) updatePageUI();
+  };
 }
+$('#btnTestVoice').onclick = () => {
+  if (!('speechSynthesis' in window)) return toast('Este navegador no tiene voz');
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(settings.comicLang === 'en' ? 'Hello! This is how I will read your comics.' : '¡Hola! Así voy a leer tus cómics.');
+  const v = listVoices(settings.comicLang).find((x) => x.voiceURI === settings.voiceURI);
+  if (v) { u.voice = v; u.lang = v.lang; } else u.lang = settings.comicLang === 'en' ? 'en-US' : 'es-ES';
+  u.rate = +settings.ttsRate || 1;
+  speechSynthesis.speak(u);
+};
 $('#btnSettings').onclick = openSettings;
 $('#btnSettingsLib').onclick = openSettings;
 $('#btnShowHint').onclick = () => { dlg.close(); if (book) $('#hint').hidden = false; else toast('Abre un cómic para ver las instrucciones'); };
@@ -565,6 +621,16 @@ $('#btnHintOk').onclick = () => { $('#hint').hidden = true; settings.hintSeen = 
 /* =========================================================
    INICIO
    ========================================================= */
+initVoz({
+  settings,
+  toast,
+  view: () => ({ img, s, tx, ty, bw, bh, vw, vh }),
+  bookId: () => curId,
+  page: () => cur,
+  cacheGet: (k) => idb('ocr', 'readonly', (st) => st.get(k)),
+  cachePut: (k, v) => idb('ocr', 'readwrite', (st) => st.put(v, k)),
+  onVoicesChanged: () => { if (dlg.open) fillVoices(); },
+});
 renderLibrary();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
