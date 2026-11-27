@@ -599,11 +599,28 @@ for (const [id, k] of Object.entries(fields)) {
   el.onchange = () => {
     settings[k] = el.type === 'checkbox' ? el.checked : el.value.trim();
     if (id === 'setComicLang') { settings.voiceURI = ''; fillVoices(); }
+    if (id === 'setTtsMode') syncAiToggle();
     if (id === 'setAiProvider') { settings.aiModel = ''; $('#setAiModel').value = ''; syncAiFields(); }
     saveSettings();
     if (book) updatePageUI();
   };
 }
+// Selector rápido junto a la bocina: Con IA (automático, con respaldo local) / Sin IA
+function syncAiToggle() {
+  const on = settings.ttsMode !== 'local';
+  const b = $('#btnAiToggle');
+  b.textContent = on ? '🤖 IA' : '📴 Sin IA';
+  b.classList.toggle('on', on);
+}
+$('#btnAiToggle').onclick = () => {
+  if (voiceActive()) stopVoice();
+  settings.ttsMode = settings.ttsMode === 'local' ? 'auto' : 'local';
+  saveSettings(); syncAiToggle();
+  if (settings.ttsMode === 'local') toast('Modo sin IA: se lee en el teléfono, sin internet');
+  else if (!settings.aiKey) toast('Modo IA: falta tu clave en ⚙ Ajustes (mientras tanto leo sin IA)', 4000);
+  else toast(navigator.onLine ? 'Modo IA activado' : 'Modo IA: sin internet ahora, leeré sin IA');
+};
+syncAiToggle();
 $('#btnTestVoice').onclick = () => {
   if (!('speechSynthesis' in window)) return toast('Este navegador no tiene voz');
   speechSynthesis.cancel();

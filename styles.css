@@ -150,3 +150,13 @@ dialog label.row { flex-direction: row; align-items: center; gap: 10px; color: v
 dialog label.row input { width: 20px; height: 20px; accent-color: var(--accent); }
 dialog small { font-size: .75rem; color: var(--muted); }
 .credit { text-align: center; color: var(--muted); font-size: .75rem; margin-top: 28px; opacity: .8; }
+
+/* Selector Con IA / Sin IA junto a la bocina */
+.ai-toggle { position: absolute; right: 80px; bottom: calc(84px + var(--safe-bottom)); z-index: 12;
+  height: 44px; padding: 0 14px; border-radius: 22px; font-size: .9rem; font-weight: 700;
+  background: rgba(20,20,28,.85); color: var(--muted); border: 2px solid #44445a;
+  box-shadow: 0 4px 14px rgba(0,0,0,.45); transition: bottom .22s ease; backdrop-filter: blur(6px); }
+.ai-toggle.on { color: var(--accent); border-color: var(--accent); }
+.ai-toggle:active { transform: scale(.95); }
+body.zoomed .ai-toggle, body.bars-hidden .ai-toggle { bottom: calc(22px + var(--safe-bottom)); }
+body.sheet-open .ai-toggle { display: none; }
