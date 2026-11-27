@@ -650,5 +650,15 @@ initVoz({
 });
 renderLibrary();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then((reg) => reg.update()).catch(() => {});
+  });
+  // Cuando se instala una versión nueva, recargar una vez para usarla (sin interrumpir la lectura)
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloaded) return;
+    reloaded = true;
+    if ($('#reader').classList.contains('active')) toast('Versión nueva lista: se aplicará al volver a la biblioteca', 4000);
+    else location.reload();
+  });
 }

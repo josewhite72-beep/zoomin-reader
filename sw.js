@@ -1,5 +1,8 @@
-// zoomin-reader service worker — funciona sin conexión
-const CACHE = 'zoomin-reader-v4';
+// zoomin-reader service worker
+// - Archivos de la app (html, js, css, json): primero red, para que las actualizaciones lleguen enseguida;
+//   si no hay internet, se usa la copia guardada.
+// - Librerías pesadas e iconos (vendor/, icons/): primero caché (casi nunca cambian).
+const CACHE = 'zoomin-reader-v5';
 const ASSETS = [
   './',
   'index.html',
@@ -27,14 +30,24 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+const save = (req, res) => {
+  if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+  return res;
+};
+
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
+  const req = e.request;
+  if (req.method !== 'GET' || !req.url.startsWith(self.location.origin)) return;
+  const path = new URL(req.url).pathname;
+  const heavy = /\/(vendor|icons)\//.test(path);
+
+  if (heavy) {
+    e.respondWith(caches.match(req, { ignoreSearch: true }).then((hit) => hit || fetch(req).then((r) => save(req, r))));
+    return;
+  }
   e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then((hit) =>
-      hit || fetch(e.request).then((res) => {
-        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
-        return res;
-      }).catch(() => caches.match('index.html'))
-    )
+    fetch(req, { cache: 'no-store' })
+      .then((r) => save(req, r))
+      .catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match('index.html')))
   );
 });
